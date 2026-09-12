@@ -10,24 +10,42 @@ PORT = 9000
 PROTOCOL_VERSION = 1
 
 
+def recv_all(s, size):
+    """Получить ровно size байт из сокета."""
+    data = b""
+    while len(data) < size:
+        chunk = s.recv(size - len(data))
+        if not chunk:
+            break
+        data += chunk
+    return data
+
+
 def send_request(op_code, body=None):
     """Отправить запрос на сервер и получить ответ."""
     body_bytes = json.dumps(body).encode("utf-8") if body else b""
     body_size = len(body_bytes)
 
-    # Структура запроса: 1 байт версия, 2 байта код операции, 3 байта размер тела, тело
     size_bytes = struct.pack("<I", body_size)[:3]
     request = bytes([PROTOCOL_VERSION]) + struct.pack("<H", op_code) + size_bytes + body_bytes
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))
         s.send(request)
-        response = s.recv(4096)
 
-    # Читаем ответ: 1 байт код, 4 байта размер, тело
-    resp_size = struct.unpack_from("<I", response, 1)[0]
-    resp_body = response[5:5 + resp_size]
+        # Читаем заголовок ответа: 1 байт код + 4 байта размер = 5 байт
+        resp_header = recv_all(s, 5)
+        resp_size = struct.unpack_from("<I", resp_header, 1)[0]
+
+        # Читаем тело ответа
+        resp_body = recv_all(s, resp_size)
+
     return json.loads(resp_body.decode("utf-8"))
+
+
+def reset():
+    """Сбросить все данные на сервере (для тестов)."""
+    return send_request(99, {})
 
 
 # ===== Методы клиента =====

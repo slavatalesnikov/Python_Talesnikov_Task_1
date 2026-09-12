@@ -9,10 +9,8 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 import models
 
-# Версия протокола
 PROTOCOL_VERSION = 1
 
-# Коды операций
 OPERATIONS = {
     1:  "entity_create",
     2:  "entity_delete",
@@ -30,17 +28,30 @@ OPERATIONS = {
 }
 
 
-def handle_request(data):
-    """Обработать входящий запрос и вернуть ответ."""
+def recv_all(conn, size):
+    """Получить ровно size байт из сокета."""
+    data = b""
+    while len(data) < size:
+        chunk = conn.recv(size - len(data))
+        if not chunk:
+            break
+        data += chunk
+    return data
 
-    # Читаем заголовок запроса
-    # 1 байт - версия, 2 байта - код операции, 3 байта - размер тела
-    version = data[0]
-    op_code = struct.unpack_from("<H", data, 1)[0]
-    body_size = struct.unpack_from("<I", data[3:6] + b"\x00")[0]
 
-    # Читаем тело запроса (JSON)
-    body_bytes = data[6:6 + body_size]
+def handle_request(conn):
+    """Прочитать запрос и вернуть ответ."""
+    # Читаем заголовок: 1 + 2 + 3 = 6 байт
+    header = recv_all(conn, 6)
+    if len(header) < 6:
+        return None
+
+    version = header[0]
+    op_code = struct.unpack_from("<H", header, 1)[0]
+    body_size = struct.unpack_from("<I", header[3:6] + b"\x00")[0]
+
+    # Читаем тело
+    body_bytes = recv_all(conn, body_size) if body_size > 0 else b""
     body = json.loads(body_bytes.decode("utf-8")) if body_size > 0 else {}
 
     print(f"[LOG] version={version} op_code={op_code} body={body}")
@@ -78,14 +89,20 @@ def handle_request(data):
         result = models.feedback_get_by_id(body["identifier"])
     elif op_name == "get_recent_assignments_with_feedback":
         result = models.get_recent_assignments_with_feedback()
+    elif op_name == "reset":
+        models.entities.clear()
+        models.assignments.clear()
+        models.feedbacks.clear()
+        models.entity_next_id = 1
+        models.assignment_next_id = 1
+        models.feedback_next_id = 1
+        result = "ok"
     else:
         result = "unknown operation"
 
     # Формируем ответ
     response_body = json.dumps(result).encode("utf-8")
     response_size = struct.pack("<I", len(response_body))
-
-    # Структура ответа: 1 байт код операции, 4 байта размер, тело
     response = bytes([op_code]) + response_size + response_body
     return response
 
@@ -101,9 +118,8 @@ def start_server(host="127.0.0.1", port=9000):
     while True:
         conn, addr = server.accept()
         print(f"[LOG] Подключился клиент: {addr}")
-        data = conn.recv(4096)
-        if data:
-            response = handle_request(data)
+        response = handle_request(conn)
+        if response:
             conn.send(response)
         conn.close()
 
