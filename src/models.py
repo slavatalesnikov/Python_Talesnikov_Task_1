@@ -96,9 +96,9 @@ def feedback_get_by_id(identifier):
 
 def get_recent_assignments_with_feedback():
     """
-    Выборка: соединение Assignment и Feedback.
-    Берём Feedback созданные за последние 5 минут,
-    соединяем с Assignment по полю assignment = identifier.
+    Выборка: LEFT JOIN Assignment и Feedback.
+    Берём все Assignment, соединяем с Feedback за последние 5 минут.
+    Если у Assignment нет Feedback — в результате будет None.
     Возвращаем: parameter, cache_hit, output.
     """
     import time
@@ -106,9 +106,17 @@ def get_recent_assignments_with_feedback():
     five_minutes_ago = now - 5 * 60
 
     result = []
-    for f in feedbacks:
-        if f[1] > five_minutes_ago:
-            for a in assignments:
-                if a[0] == f[5]:
-                    result.append((a[2], f[6], f[2]))  # parameter, cache_hit, output
+    for a in assignments:
+        # Ищем подходящий Feedback для этого Assignment
+        matched = None
+        for f in feedbacks:
+            if f[5] == a[0] and f[1] > five_minutes_ago:
+                matched = f
+                break
+
+        if matched:
+            result.append((a[2], matched[6], matched[2]))  # parameter, cache_hit, output
+        else:
+            result.append((a[2], None, None))  # parameter, None, None
+
     return result
