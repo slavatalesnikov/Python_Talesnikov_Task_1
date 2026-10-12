@@ -128,8 +128,8 @@ def get_recent_assignments_with_feedback():
     return send_request(13)
 
 
-if __name__ == "__main__":
-    """Демонстрация работы всех методов клиента."""
+def main():
+    """Продемонстрировать работу всех методов клиента."""
     print("=== Демонстрация RPC клиента ===")
     now = int(time.time())
 
@@ -158,3 +158,7 @@ if __name__ == "__main__":
     print("\n-- Удаление --")
     print("Удалить Entity 1:", entity_delete(1))
     print("Entity после удаления:", entity_get_all())
+
+
+if __name__ == "__main__":
+    main()

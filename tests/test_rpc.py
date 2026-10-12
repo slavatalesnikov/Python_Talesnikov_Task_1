@@ -1,14 +1,11 @@
 """Тесты RPC на основе модели с использованием hypothesis."""
 
-import sys
-import os
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-import client
-from hypothesis.stateful import RuleBasedStateMachine, rule
 import hypothesis.strategies as st
+from hypothesis.stateful import RuleBasedStateMachine, rule
+
+from src import client
 
 
 class RPCStateMachine(RuleBasedStateMachine):

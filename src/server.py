@@ -3,11 +3,10 @@
 import socket
 import struct
 import json
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(__file__))
-import models
+try:
+    from . import models
+except ImportError:
+    import models
 
 PROTOCOL_VERSION = 1
 HEADER_SIZE = 6
@@ -27,6 +26,28 @@ OPERATIONS = {
     11: "feedback_get_all",
     12: "feedback_get_by_id",
     13: "get_recent_assignments_with_feedback",
+}
+
+
+OPERATION_ARGUMENTS = {
+    "entity_create": ("created", "ip", "locale", "platform"),
+    "entity_delete": ("identifier",),
+    "entity_get_all": (),
+    "entity_get_by_id": ("identifier",),
+    "assignment_create": (
+        "created", "parameter", "entity", "tags", "stage", "triggered"
+    ),
+    "assignment_delete": ("identifier",),
+    "assignment_get_all": (),
+    "assignment_get_by_id": ("identifier",),
+    "feedback_create": (
+        "created", "output", "stage", "exception", "assignment",
+        "cache_hit", "duration"
+    ),
+    "feedback_delete": ("identifier",),
+    "feedback_get_all": (),
+    "feedback_get_by_id": ("identifier",),
+    "get_recent_assignments_with_feedback": (),
 }
 
 
@@ -50,47 +71,14 @@ def parse_header(header):
 
 
 def call_operation(op_name, body):
-    """Вызвать нужную функцию модели по имени операции."""
-    if op_name == "entity_create":
-        return models.entity_create(
-            body["created"], body["ip"],
-            body["locale"], body["platform"]
-        )
-    if op_name == "entity_delete":
-        models.entity_delete(body["identifier"])
+    """Вызвать функцию модели с аргументами из тела запроса."""
+    if op_name not in OPERATION_ARGUMENTS:
+        return "unknown operation"
+    arguments = [body[key] for key in OPERATION_ARGUMENTS[op_name]]
+    result = getattr(models, op_name)(*arguments)
+    if op_name.endswith("_delete"):
         return "ok"
-    if op_name == "entity_get_all":
-        return models.entity_get_all()
-    if op_name == "entity_get_by_id":
-        return models.entity_get_by_id(body["identifier"])
-    if op_name == "assignment_create":
-        return models.assignment_create(
-            body["created"], body["parameter"], body["entity"],
-            body["tags"], body["stage"], body["triggered"]
-        )
-    if op_name == "assignment_delete":
-        models.assignment_delete(body["identifier"])
-        return "ok"
-    if op_name == "assignment_get_all":
-        return models.assignment_get_all()
-    if op_name == "assignment_get_by_id":
-        return models.assignment_get_by_id(body["identifier"])
-    if op_name == "feedback_create":
-        return models.feedback_create(
-            body["created"], body["output"], body["stage"],
-            body["exception"], body["assignment"],
-            body["cache_hit"], body["duration"]
-        )
-    if op_name == "feedback_delete":
-        models.feedback_delete(body["identifier"])
-        return "ok"
-    if op_name == "feedback_get_all":
-        return models.feedback_get_all()
-    if op_name == "feedback_get_by_id":
-        return models.feedback_get_by_id(body["identifier"])
-    if op_name == "get_recent_assignments_with_feedback":
-        return models.get_recent_assignments_with_feedback()
-    return "unknown operation"
+    return result
 
 
 def reset_data():
@@ -137,7 +125,7 @@ def start_server(host="127.0.0.1", port=9000):
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((host, port))
     server.listen(5)
-    print(f"Сервер запущен на {host}:{port}")
+    print("Сервер запущен на {}:{}".format(host, port))
 
     while True:
         conn, addr = server.accept()
